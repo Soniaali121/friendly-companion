@@ -1,0 +1,164 @@
+import React, { useState } from 'react';
+import { GoogleGenAI } from "@google/genai";
+
+function App() {
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hello bestie. If you are feeling lonely or going through a hard time, please share it with me. I am here to listen.' }
+  ]);
+  const [loading, setLoading] = useState(false);
+
+  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [savedChats, setSavedChats] = useState([]);
+
+  
+  const GEMINI_API_KEY = "put your API here";
+  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+
+    const userMessage = { role: 'user', content: input };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput('');
+    setLoading(true);
+
+    const systemPrompt = "You are a warm, deeply empathetic human friend helping someone through hardship. Validate feelings first, keep responses short (2-3 sentences), and offer genuine comfort.";
+
+    try {
+      ##structural message array context history
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          { role: "user", parts: [{ text: systemPrompt }] },
+          ...updatedMessages.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }]
+          }))
+        ]
+      });
+
+      const aiReply = response.text || "I am right here listening to you.";
+      setMessages([...updatedMessages, { role: 'assistant', content: aiReply }]);
+    } catch (error) {
+      console.error("Connection Error:", error);
+      setMessages([...updatedMessages, { role: 'assistant', content: "I am right here with you in spirit. Please try typing to me again." }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  
+  const startNewChat = () => {
+    if (messages.length > 1) {
+      const firstUserMsg = messages.find(m => m.role === 'user')?.content || "Saved Chat";
+      const abbreviatedTitle = firstUserMsg.length > 20 ? firstUserMsg.substring(0, 20) + "..." : firstUserMsg;
+
+      setSavedChats([...savedChats, { title: abbreviatedTitle, chatData: messages }]);
+    }
+    setMessages([
+      { role: 'assistant', content: 'Hello bestie. If you are feeling lonely or going through a hard time, please share it with me. I am here to listen.' }
+    ]);
+    setIsSidebarOpen(false);
+  };
+
+  
+  const loadSavedChat = (chatData) => {
+    setMessages(chatData);
+    setIsSidebarOpen(false);
+  };
+
+  return (
+    <div style={styles.appWrapper}>
+
+      {/* 🍔 HAMBURGER BUTTON */}
+      <button style={styles.hamburgerBtn} onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+        {isSidebarOpen ? '✕' : '☰'}
+      </button>
+
+      {/* 📂 SLIDEOUT SIDEBAR HISTORY MENU */}
+      <div style={{ ...styles.sidebar, width: isSidebarOpen ? '260px' : '0px', padding: isSidebarOpen ? '20px' : '0px' }}>
+        {isSidebarOpen && (
+          <>
+            <button style={styles.newChatBtn} onClick={startNewChat}>+ New Chat</button>
+            <h3 style={styles.historyHeading}>Chat History</h3>
+            <div style={styles.historyList}>
+              {savedChats.length === 0 ? (
+                <p style={styles.emptyHistory}>No previous chats yet.</p>
+              ) : (
+                savedChats.map((chat, idx) => (
+                  <button key={idx} style={styles.historyItem} onClick={() => loadSavedChat(chat.chatData)}>
+                    💬 {chat.title}
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 💬 INTERACTIVE DIALOGUE APP DISPLAY */}
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <h1 style={styles.title}>🌱 Safe Zone</h1>
+          <p style={styles.subtitle}>I am here for everyone who experiencing loneliness or hardship.</p>
+        </header>
+
+        <div style={styles.chatWindow}>
+          {messages.map((msg, index) => (
+            <div key={index} style={msg.role === 'user' ? styles.userBubbleContainer : styles.aiBubbleContainer}>
+              <div style={msg.role === 'user' ? styles.userBubble : styles.aiBubble}>
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          {loading && <div style={styles.loading}>Thinking gently...</div>}
+        </div>
+
+        <form onSubmit={handleSend} style={styles.inputArea}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Share what is on your mind..."
+            style={styles.input}
+            disabled={loading}
+          />
+          <button type="submit" style={styles.button} disabled={loading}>
+            Talk
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+const styles = {
+  appWrapper: { display: 'flex', height: '100vh', backgroundColor: '#fdfbf7', fontFamily: 'sans-serif', position: 'relative' },
+  hamburgerBtn: { position: 'absolute', top: '20px', left: '20px', fontSize: '24px', background: 'none', border: 'none', cursor: 'pointer', zIndex: 10, color: '#2c3e50' },
+  sidebar: { height: '100%', backgroundColor: '#ffffff', borderRight: '1px solid #eef0f2', overflowX: 'hidden', transition: '0.3s', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', zIndex: 5 },
+  newChatBtn: { marginTop: '40px', padding: '12px', border: '1px dashed #8ea89d', borderRadius: '8px', backgroundColor: '#f4f7f5', color: '#0f5132', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
+  historyHeading: { color: '#7f8c8d', fontSize: '14px', marginTop: '30px', textTransform: 'uppercase', letterSpacing: '1px' },
+  historyList: { display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' },
+  emptyHistory: { color: '#bdc3c7', fontSize: '13px', fontStyle: 'italic' },
+  historyItem: { textAlign: 'left', padding: '10px', border: 'none', backgroundColor: 'transparent', cursor: 'pointer', borderRadius: '6px', fontSize: '14px', color: '#2c3e50', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  container: { flex: 1, maxWidth: '600px', margin: '0 auto', padding: '40px 20px 20px 20px', display: 'flex', flexDirection: 'column', height: '90vh' },
+  header: { textAlign: 'center', marginBottom: '20px', borderBottom: '1px solid #eef0f2', paddingBottom: '10px' },
+  title: { color: '#2c3e50', fontSize: '24px', margin: '0' },
+  subtitle: { color: '#7f8c8d', fontSize: '14px', margin: '5px 0 0 0' },
+  chatWindow: { flex: '1', overflowY: 'auto', padding: '10px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' },
+  userBubbleContainer: { display: 'flex', justifyContent: 'flex-end' },
+  aiBubbleContainer: { display: 'flex', justifyContent: 'flex-start' },
+  userBubble: { backgroundColor: '#d1e7dd', color: '#0f5132', padding: '12px 16px', borderRadius: '16px 16px 4px 16px', maxWidth: '75%', fontSize: '15px', lineHeight: '1.4' },
+  aiBubble: { backgroundColor: '#ffffff', color: '#2c3e50', padding: '12px 16px', borderRadius: '16px 16px 16px 4px', maxWidth: '75%', fontSize: '15px', lineHeight: '1.4', border: '1px solid #eef0f2' },
+  loading: { fontSize: '13px', color: '#95a5a6', fontStyle: 'italic', paddingLeft: '5px' },
+  inputArea: { display: 'flex', gap: '10px' },
+  input: { flex: '1', padding: '14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '15px', outline: 'none' },
+  button: { padding: '0 24px', borderRadius: '8px', border: 'none', backgroundColor: '#8ea89d', color: 'white', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }
+};
+
+export default App;
